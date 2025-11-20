@@ -1,7 +1,8 @@
 # check_gui.py
 """画像合成カメラGUIアプリケーション
 
-Author: K24032 大石大雅（ビューとモデルのインターフェース開発担当）
+Author: K24032 K24139
+
 """
 
 import sys
@@ -13,8 +14,20 @@ from PySide6.QtCore import QTimer, Qt
 from PySide6.QtGui import QImage, QPixmap
 from ui_mainwindow import Ui_MainWindow
 
-# パスの設定（kadai/src/ から実行されることを想定）
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+# --- パス設定の修正（ここが重要） ---
+# 1. このファイル（check_gui.py）があるディレクトリ（src）を取得
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+# 2. その親ディレクトリ（kadai）をプロジェクトルートとする
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+
+# モジュールのインポート用にパスを通す
+sys.path.append(PROJECT_ROOT)
+
+# 画像フォルダと出力フォルダの絶対パスを定義
+IMAGES_DIR = os.path.join(PROJECT_ROOT, 'images')
+OUTPUT_DIR = os.path.join(PROJECT_ROOT, 'output_images')
+
+# 自作モジュールのインポート
 from my_module.K24139.lecture05_camera_image_capture import MyVideoCapture
 from my_module.K24032.image_processor import ImageProcessor
 
@@ -96,17 +109,19 @@ class ImageProcessorApp(QMainWindow):
         self.timer.stop()
         self.is_camera_active = False
 
-        # 撮影画像を保存
-        os.makedirs('../images', exist_ok=True)
-        cv2.imwrite('../images/camera_capture.png', self.captured_image)
+        # 【修正】撮影画像を保存（絶対パスを使用）
+        os.makedirs(IMAGES_DIR, exist_ok=True)
+        save_path = os.path.join(IMAGES_DIR, 'camera_capture.png')
+        cv2.imwrite(save_path, self.captured_image)
 
         # 画像合成処理
         self.compose_image()
 
     def compose_image(self):
         """画像合成を実行"""
-        # 背景画像を読み込み
-        base_image_path = '../images/google.png'
+        # 【修正】背景画像を絶対パスで読み込み
+        base_image_path = os.path.join(IMAGES_DIR, 'google.png')
+        
         if not os.path.exists(base_image_path):
             self.update_status(f"エラー: {base_image_path} が見つかりません")
             return
@@ -120,9 +135,10 @@ class ImageProcessorApp(QMainWindow):
             result = self.image_processor.get_result_image()
             self.display_image(result, self.ui.lbl_result_image)
 
-            # 自動保存
-            os.makedirs('../output_images', exist_ok=True)
-            save_path = '../output_images/lecture05_01_k24032.png'
+            # 【修正】自動保存（絶対パスを使用）
+            os.makedirs(OUTPUT_DIR, exist_ok=True)
+            save_path = os.path.join(OUTPUT_DIR, 'lecture05_01_k24032.png')
+            
             if self.image_processor.save_result(save_path):
                 self.update_status(f"画像合成完了！保存先: {save_path}")
                 self.ui.btn_save.setEnabled(True)
@@ -137,11 +153,14 @@ class ImageProcessorApp(QMainWindow):
             self.update_status("保存する画像がありません")
             return
 
+        # デフォルトの保存先パスを作成
+        default_path = os.path.join(OUTPUT_DIR, 'lecture05_01_k24032.png')
+
         # ファイルダイアログで保存先を選択
         file_path, _ = QFileDialog.getSaveFileName(
             self,
             "画像を保存",
-            "../output_images/lecture05_01_k24032.png",
+            default_path,
             "画像ファイル (*.png *.jpg *.jpeg)"
         )
 
@@ -152,22 +171,14 @@ class ImageProcessorApp(QMainWindow):
                 self.update_status("画像の保存に失敗しました")
 
     def display_image(self, cv_image, label):
-        """OpenCV画像をQtラベルに表示
-
-        Args:
-            cv_image: OpenCV形式の画像（BGR）
-            label: 表示先のQLabelウィジェット
-        """
-        # BGRからRGBに変換
+        """OpenCV画像をQtラベルに表示"""
         rgb_image = cv2.cvtColor(cv_image, cv2.COLOR_BGR2RGB)
         h, w, ch = rgb_image.shape
         bytes_per_line = ch * w
 
-        # QImageに変換
         qt_image = QImage(rgb_image.data, w, h, bytes_per_line, QImage.Format_RGB888)
-        # QPixmapに変換してラベルにセット
         pixmap = QPixmap.fromImage(qt_image)
-        # ラベルのサイズに合わせて拡大縮小（アスペクト比維持）
+        
         scaled_pixmap = pixmap.scaled(
             label.size(),
             Qt.KeepAspectRatio,
@@ -176,11 +187,7 @@ class ImageProcessorApp(QMainWindow):
         label.setPixmap(scaled_pixmap)
 
     def update_status(self, message):
-        """ステータスメッセージを更新
-
-        Args:
-            message (str): 表示するメッセージ
-        """
+        """ステータスメッセージを更新"""
         self.ui.lbl_status.setText(f"📌 {message}")
         self.ui.statusbar.showMessage(message)
 
@@ -188,6 +195,7 @@ class ImageProcessorApp(QMainWindow):
         """ウィンドウを閉じるときの処理"""
         if self.camera is not None:
             self.timer.stop()
+            # 明示的にリソース解放メソッドがあれば呼ぶ（なければdelでも可）
             del self.camera
         event.accept()
 
