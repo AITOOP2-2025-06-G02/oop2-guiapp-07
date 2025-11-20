@@ -25,6 +25,34 @@ class MyVideoCapture:
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         self.captured_img: np.ndarray | None = None
 
+    def capture_frame(self) -> np.ndarray | None:
+        """カメラから1フレームを取得（GUI用）。
+
+        Returns:
+            np.ndarray | None: 取得したフレーム（BGR形式）。失敗時はNone。
+        """
+        ret, frame = self.cap.read()
+        if not ret:
+            return None
+        return frame
+
+    def draw_target_mark(self, img: np.ndarray) -> np.ndarray:
+        """画像の中心にターゲットマークを描画（GUI用）。
+
+        Args:
+            img (np.ndarray): 入力画像
+
+        Returns:
+            np.ndarray: ターゲットマークが描画された画像
+        """
+        rows, cols, _ = img.shape
+        center = (int(cols / 2), int(rows / 2))
+        img = cv2.circle(img, center, 30, (0, 0, 255), 3)
+        img = cv2.circle(img, center, 60, (0, 0, 255), 3)
+        img = cv2.line(img, (center[0], center[1] - 80), (center[0], center[1] + 80), (0, 0, 255), 3)
+        img = cv2.line(img, (center[0] - 80, center[1]), (center[0] + 80, center[1]), (0, 0, 255), 3)
+        return img
+
     def run(self) -> None:
         """カメラ映像を取得してリアルタイムに加工・表示する。
 
@@ -40,22 +68,17 @@ class MyVideoCapture:
         """
         while True:
             # カメラ画像を１枚キャプチャする
-            ret, frame = self.cap.read()
+            frame = self.capture_frame()
 
             # リターンコードがFalseなら終了
-            if not ret:
+            if frame is None:
                 break
 
             # 加工するともとの画像が保存できないのでコピーを生成
             img: np.ndarray = np.copy(frame)
 
             # 画像の中心を示すターゲットマークを描画
-            rows, cols, _ = img.shape
-            center = (int(cols / 2), int(rows / 2))
-            img = cv2.circle(img, center, 30, (0, 0, 255), 3)
-            img = cv2.circle(img, center, 60, (0, 0, 255), 3)
-            img = cv2.line(img, (center[0], center[1] - 80), (center[0], center[1] + 80), (0, 0, 255), 3)
-            img = cv2.line(img, (center[0] - 80, center[1]), (center[0] + 80, center[1]), (0, 0, 255), 3)
+            img = self.draw_target_mark(img)
 
             # 左右反転（顔を撮るときは左右反転しておくとよい）
             img = cv2.flip(img, flipCode=1)
